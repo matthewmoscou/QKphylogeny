@@ -6,5 +6,13 @@ A set of scripts for phylogenetic tree assessment and editing.
 
 <i>QKphylogeny_rename_nodes.py</i> will convert genes/protein identifiers in a phylogenetic tree based on a tab-delimited translation table.
 
-## Example
-To be updated soon. 8 March 2017
+## Examples
+Export the proteins in a phylogenetic tree in Newick format. In this case, using the neighbor joining tree for thioredoxins in <i>Arabidopsis thaliana</i>.
+```bash
+python QKphylogeny_nodelabels.py -t examples/AT_TRX_phylogenetic_tree_NJ.newick -o AT_TRX_phylogenetic_tree_NJ_proteins.txt
+```
+
+Convert the protein identifiers from one format to another. In this case, convert long gene format (i.e. AT1G03680.1 to AtTRXm1).
+```bash
+python QKphylogeny_rename_nodes.py -t examples/AT_TRX_phylogenetic_tree_NJ.newick -l examples/AT_TRX_abbreviations.txt -o AT_TRX_phylogenetic_tree_NJ_renamed.newick
+```
