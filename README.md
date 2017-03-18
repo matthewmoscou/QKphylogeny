@@ -6,6 +6,8 @@ A set of scripts for phylogenetic tree assessment and editing.
 
 <i>QKphylogeny_rename_nodes.py</i> will convert genes/protein identifiers in a phylogenetic tree based on a tab-delimited translation table.
 
+<i>QKphylogeny_alignment_analysis.py</i> assesses the quality of a multiple sequence alignment, removes redundancy, and reduces alignment to polymorphic sites.
+
 ## Examples
 Export the proteins in a phylogenetic tree in Newick format. In this case, using the neighbor joining tree for thioredoxins in <i>Arabidopsis thaliana</i>.
 ```bash
