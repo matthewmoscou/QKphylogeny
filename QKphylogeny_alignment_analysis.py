@@ -30,6 +30,7 @@ usage = "usage: %prog [options]"
 parser = OptionParser(usage=usage)
 parser.add_option("-a", "--alignment", action="store", type="string", dest="alignment", default='', help="Alignment file in Phylip format")
 parser.add_option("-c", "--coverage", action="store", type="float", dest="coverage", default=-1.0, help="Coverage required for inclusion of sequence")
+parser.add_option("-m", "--missing", action="store", type="float", dest="missing", default=1.0, help="Missing data allowed (0.0 (none) to 1.0 (all))")
 parser.add_option("-o", "--output", action="store", type="string", dest="output", default='', help="Output file for tree with updated identifiers")
 parser.add_option("-r", "--reduce", action="store_true", dest="reduce", default=False, help="Reduce alignment to polymorphic sites")
 parser.add_option("-t", "--type", action="store", type="string", dest="type", default='nucleotide', help="Specify nucleotide or protein")
@@ -134,6 +135,9 @@ if options.reduce:
 	
 	polymorphic_sites = 0
 	monomorphic_sites = 0
+
+	missing_data_threshold_pass = 0
+	missing_data_threshold_fail = 0
 	
 	for gene in selected_genes:
 		ID_sequence_polymorphic_sites[gene] = ''
@@ -147,8 +151,24 @@ if options.reduce:
 		if len(sets.Set(evaluated_site_sequence) - sets.Set(['X', 'N'])) > 1:
 			polymorphic_sites += 1
 	
-			for gene in selected_genes:
-				ID_sequence_polymorphic_sites[gene] += ID_sequence[gene][position_index].upper()
+			missing_data = 0.0
+
+			if options.type == 'nucleotide':
+				for gene in selected_genes:
+					if ID_sequence[gene][position_index].upper() in ['N', 'O', 'X', '?']:	
+						missing_data += 1.0
+			elif options.type == 'protein':
+				for gene in selected_genes:
+					if ID_sequence[gene][position_index].upper() in ['X', '?', '*', '­']:
+						missing_data += 1.0
+
+			if ((float(len(evaluated_site_sequence)) - missing_data) / float(len(evaluated_site_sequence))) >= (1.0 - options.missing):
+				missing_data_threshold_pass += 1
+
+				for gene in selected_genes:
+					ID_sequence_polymorphic_sites[gene] += ID_sequence[gene][position_index].upper()
+			else:
+				missing_data_threshold_fail += 1
 		else:
 			monomorphic_sites += 1
 	
@@ -164,6 +184,10 @@ if options.reduce:
 	print '\t' + 'Polymorphic:', polymorphic_sites
 	print '\t' + 'Monomorphic:', monomorphic_sites
 	
+	print 'Sites that passed missing data threshold of ' + str(options.missing * 100.0) + '%:'
+	print '\t' + 'Pass:', missing_data_threshold_pass
+	print '\t' + 'Fail:', missing_data_threshold_fail
+
 	selected_genes = []
 	
 	for sequence in sequence_ID_polymorphic_sites.keys():
@@ -185,8 +209,8 @@ else:
 # crosslist: redundant identifiers
 print 'output files'
 
-phylip_digital = open(options.alignment[:len(options.alignment)-4] + '_curated.phy', 'w')
-phylip_digital_crosslist = open(options.alignment[:len(options.alignment)-4] + '_crosslist.txt', 'w')
+phylip_digital = open(options.output, 'w')
+phylip_digital_crosslist = open(options.output + '_crosslist.txt', 'w')
 
 print 'Genotypes in alignment:', len(sequence_ID_polymorphic_sites.keys())
 print 'Length of alignment:   ', len(sequence_ID_polymorphic_sites.keys()[0])
