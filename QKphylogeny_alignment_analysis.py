@@ -29,8 +29,9 @@ amino_acids = ['A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I', 'L', 'K', 'M', 
 usage = "usage: %prog [options]"
 parser = OptionParser(usage=usage)
 parser.add_option("-a", "--alignment", action="store", type="string", dest="alignment", default='', help="Alignment file in Phylip format")
-parser.add_option("-c", "--coverage", action="store", type="float", dest="coverage", default=-1.0, help="Coverage required for inclusion of sequence")
+parser.add_option("-c", "--coverage", action="store", type="float", dest="coverage", default=-1.0, help="Coverage required for inclusion of sequence, coverage above 0.0 but equal to or lower than 1.0")
 parser.add_option("-m", "--missing", action="store", type="float", dest="missing", default=1.0, help="Missing data allowed (0.0 (none) to 1.0 (all))")
+parser.add_option("-n", "--nonredundant", action="store_true", dest="nr", default=False, help="Remove redundant sequences from alignment")
 parser.add_option("-o", "--output", action="store", type="string", dest="output", default='', help="Output file for tree with updated identifiers")
 parser.add_option("-r", "--reduce", action="store_true", dest="reduce", default=False, help="Reduce alignment to polymorphic sites")
 parser.add_option("-t", "--type", action="store", type="string", dest="type", default='nucleotide', help="Specify nucleotide or protein")
@@ -39,7 +40,7 @@ parser.add_option("-t", "--type", action="store", type="string", dest="type", de
 
 ## import phylip file
 # check for identical sequence and notify user
-print 'Import phylip file'
+print 'Import Phylip file'
 phylip_input = open(options.alignment, 'r')
 
 truth = False
@@ -63,6 +64,8 @@ for line in phylip_input.readlines():
 
 	truth = True
 
+IDs.sort()
+
 phylip_input.close()
 
 print 'Unique sequences :', len(sequence_ID)
@@ -70,53 +73,56 @@ print 'Number of genes  :', len(sets.Set(IDs))
 print
 
 ## assess alignment coverage, requires user-specified coverage of the alignment
+print 'assess alignment coverage'
 alignment_length = len(sequence_ID.keys()[0])
 
-if options.coverage > 0:
-	print 'assess alignment coverage'
+truth = False
+position_sequence = []
 
-	truth = False
-	position_sequence = []
+threshold_IDs = []
+nr_threshold_IDs = []
 	
-	threshold_IDs = []
-	
-	for sequence in sequence_ID.keys():
-		first_sequence = -1
-		last_sequence = -1
-	
-		IDs = sequence_ID[sequence]
-		IDs.sort()
-		gene = IDs[0]
+for sequence in sequence_ID.keys():
+	first_sequence = -1
+	last_sequence = -1
 
-		alignment = sequence
-	
-		if len(position_sequence) == 0:
-			for position_index in range(len(alignment)):
-				position_sequence.append([])
-	
+	alignment = sequence
+
+	if len(position_sequence) == 0:
 		for position_index in range(len(alignment)):
-			position_sequence[position_index].append(alignment[position_index])
-	
-			if first_sequence < 0:
-				if options.type == 'nucleotide':
-					if alignment[position_index] in nucleotides:
-						first_sequence = position_index
-				elif options.type == 'protein':
-					if alignment[position_index] in amino_acids:
-						first_sequence = position_index
-	
+			position_sequence.append([])
+
+	for position_index in range(len(alignment)):
+		position_sequence[position_index].append(alignment[position_index])
+
+		if first_sequence < 0:
 			if options.type == 'nucleotide':
 				if alignment[position_index] in nucleotides:
-					last_sequence = position_index
+					first_sequence = position_index
 			elif options.type == 'protein':
 				if alignment[position_index] in amino_acids:
-					last_sequence = position_index
-	
-		if ((float(last_sequence) - float(first_sequence)) / float(alignment_length)) > options.coverage:
+					first_sequence = position_index
+
+		if options.type == 'nucleotide':
+			if alignment[position_index] in nucleotides:
+				last_sequence = position_index
+		elif options.type == 'protein':
+			if alignment[position_index] in amino_acids:
+				last_sequence = position_index
+
+	if ((float(last_sequence) - float(first_sequence)) / float(alignment_length)) > options.coverage:
+		nr_threshold_IDs.append(sequence_ID[sequence][0])
+
+		for gene in sequence_ID[sequence]:
 			threshold_IDs.append(gene)
 
+
+# if coverage used, limit to genes that meet threshold
+if options.coverage > 0:
 	selected_genes = threshold_IDs
-	print 'Number of sequences meeting threshold :', len(threshold_IDs)
+
+	print '\t' + 'Number of sequences meeting threshold :', len(threshold_IDs)
+	print '\t' + 'Number of non-redundant sequences meeting threshold :', len(nr_threshold_IDs)
 	print
 else:
 	selected_genes = []
@@ -124,6 +130,26 @@ else:
 	for sequence in sequence_ID.keys():
 		for ID in sequence_ID[sequence]:
 			selected_genes.append(ID)
+
+
+# export alignment coverage 
+print 'export alignment coverage'
+alignment_coverage_file = open(options.alignment + '_alignment_coverage.txt', 'w')
+	
+alignment_coverage_file.write('position' + '\t' + 'coverage' + '\n')
+
+for position_index in range(len(alignment)):
+	positive_sites = 0
+
+	for singlesequence in position_sequence[position_index]:
+		if options.type == 'nucleotide':
+			if singlesequence in nucleotides:
+				positive_sites += 1
+		elif options.type == 'protein':
+			if singlesequence in amino_acids:
+				positive_sites += 1
+	
+	alignment_coverage_file.write(str(position_index + 1) + '\t' + str(float(positive_sites) / float(len(position_sequence[position_index]))) + '\n')
 
 
 ## reduce evaluated sites
@@ -155,12 +181,12 @@ if options.reduce:
 
 			if options.type == 'nucleotide':
 				for gene in selected_genes:
-					if ID_sequence[gene][position_index].upper() in ['N', 'O', 'X', '?']:	
-						missing_data += 1.0
+					if ID_sequence[gene][position_index].upper() in ['N', 'O', 'X', '?', '-']:	
+						missing_data += 1
 			elif options.type == 'protein':
 				for gene in selected_genes:
-					if ID_sequence[gene][position_index].upper() in ['X', '?', '*', '­']:
-						missing_data += 1.0
+					if ID_sequence[gene][position_index].upper() in ['X', '?', '­']:
+						missing_data += 1
 
 			if ((float(len(evaluated_site_sequence)) - missing_data) / float(len(evaluated_site_sequence))) >= (1.0 - options.missing):
 				missing_data_threshold_pass += 1
@@ -210,28 +236,34 @@ else:
 print 'output files'
 
 phylip_digital = open(options.output, 'w')
-phylip_digital_crosslist = open(options.output + '_crosslist.txt', 'w')
 
 print 'Genotypes in alignment:', len(sequence_ID_polymorphic_sites.keys())
 print 'Length of alignment:   ', len(sequence_ID_polymorphic_sites.keys()[0])
 
 # export header for phylip file
-phylip_digital.write(' ' + str(len(sequence_ID_polymorphic_sites.keys())) + ' ' + str(len(sequence_ID_polymorphic_sites.keys()[0])) + '\n')
 
 # export identifier and sequence, final check of gene identifier length
-for sequence in sequence_ID_polymorphic_sites.keys():
-	IDs = sequence_ID_polymorphic_sites[sequence]
-	IDs.sort()
-
-	phylip_digital.write(IDs[0] + '   ' + sequence + '\n')
-
-	phylip_digital_crosslist.write(IDs[0])
-
-	if len(IDs) > 1:
-		for ID in IDs[1:]:
-			phylip_digital_crosslist.write('\t' + ID)
+if options.nr:
+	phylip_digital.write(' ' + str(len(selected_genes)) + ' ' + str(len(ID_sequence[selected_genes[0]])) + '\n')
+	phylip_digital_crosslist = open(options.output + '_crosslist.txt', 'w')
 	
-	phylip_digital_crosslist.write('\n')
+	for sequence in sequence_ID_polymorphic_sites.keys():
+		phylip_digital.write(sequence_ID_polymorphic_sites[sequence][0] + '   ' + sequence + '\n')
+
+		phylip_digital_crosslist.write(sequence_ID_polymorphic_sites[sequence][0])
+
+		if len(sequence_ID_polymorphic_sites[sequence]) > 1:
+			for ID in sequence_ID_polymorphic_sites[sequence][1:]:
+				phylip_digital_crosslist.write('\t' + ID)
+	
+		phylip_digital_crosslist.write('\n')
+	
+	phylip_digital_crosslist.close()
+else:
+	phylip_digital.write(' ' + str(len(selected_genes)) + ' ' + str(len(ID_sequence_polymorphic_sites[selected_genes[0]])) + '\n')
+
+	for gene in selected_genes:
+		phylip_digital.write(gene + '   ' + ID_sequence_polymorphic_sites[gene] + '\n')
+
 
 phylip_digital.close()
-phylip_digital_crosslist.close()
