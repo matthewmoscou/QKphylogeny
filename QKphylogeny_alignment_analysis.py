@@ -256,20 +256,29 @@ phylip_digital = open(options.output, 'w')
 print 'Genotypes in alignment:', len(sequence_ID_polymorphic_sites.keys())
 print 'Length of alignment:   ', len(sequence_selection(sequence_ID_polymorphic_sites.keys()[0], position_selection))
 
-# export header for phylip file
-
 # export identifier and sequence, final check of gene identifier length
 if options.nr:
-	phylip_digital.write(' ' + str(len(selected_genes)) + ' ' + str(len(sequence_selection(ID_sequence[selected_genes[0]], position_selection))) + '\n')
+	# assess redundancy in final alignment based on breadth and depth calculation
+	sequence_ID_output = {}
+
+	for gene in selected_genes:
+		sequence = sequence_selection(ID_sequence_polymorphic_sites[gene], position_selection)
+		
+		if sequence not in sequence_ID_output.keys():
+			sequence_ID_output[sequence] = []
+
+		sequence_ID_output[sequence].append(gene)
+
+	phylip_digital.write(' ' + str(len(selected_genes)) + ' ' + str(len(sequence_ID_output.keys()[0])) + '\n')
 	phylip_digital_crosslist = open(options.output + '_crosslist.txt', 'w')
 	
-	for sequence in sequence_ID_polymorphic_sites.keys():
-		phylip_digital.write(sequence_ID_polymorphic_sites[sequence][0] + '   ' + sequence_selection(sequence, position_selection) + '\n')
+	for sequence in sequence_ID_output.keys():
+		phylip_digital.write(sequence_ID_output[sequence][0] + '   ' + sequence + '\n')
 
-		phylip_digital_crosslist.write(sequence_ID_polymorphic_sites[sequence][0])
+		phylip_digital_crosslist.write(sequence_ID_output[sequence][0])
 
-		if len(sequence_ID_polymorphic_sites[sequence]) > 1:
-			for ID in sequence_ID_polymorphic_sites[sequence][1:]:
+		if len(sequence_ID_output[sequence]) > 1:
+			for ID in sequence_ID_output[sequence][1:]:
 				phylip_digital_crosslist.write('\t' + ID)
 	
 		phylip_digital_crosslist.write('\n')
