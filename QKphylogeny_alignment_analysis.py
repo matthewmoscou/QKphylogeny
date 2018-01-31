@@ -47,12 +47,15 @@ parser.add_option("-n", "--nonredundant", action="store_true", dest="nr", defaul
 parser.add_option("-o", "--output", action="store", type="string", dest="output", default='', help="Output file for tree with updated identifiers")
 parser.add_option("-r", "--reduce", action="store_true", dest="reduce", default=False, help="Reduce alignment to polymorphic sites")
 parser.add_option("-t", "--type", action="store", type="string", dest="type", default='nucleotide', help="Specify nucleotide or protein")
+parser.add_option("-q", "--quiet", action="store_false", dest="verbose", default=True, help="Don't print status messages to stdout")
 (options, args) = parser.parse_args()
 
 
 ## Import phylip file
 # check for identical sequence and notify user
-print 'Import Phylip file'
+if options.verbose:
+	print 'Import Phylip file'
+
 phylip_input = open(options.alignment, 'r')
 
 truth = False
@@ -70,7 +73,9 @@ for line in phylip_input.readlines():
 			sequence_ID[sline[1]] = [sline[0]]
 		else:
 			sequence_ID[sline[1]].append(sline[0])
-			print '\t' + 'Identical sequence for:', sequence_ID[sline[1]][0], sline[0] 
+
+			if options.verbose:
+				print '\t' + 'Identical sequence for:', sequence_ID[sline[1]][0], sline[0] 
 
 		IDs.append(sline[0])
 
@@ -80,13 +85,16 @@ IDs.sort()
 
 phylip_input.close()
 
-print 'Unique sequences    :', len(sequence_ID)
-print 'Number of genes     :', len(sets.Set(IDs))
-print 'Length of alignment :', len(sequence_ID.keys()[0])
-print
+if options.verbose:
+	print 'Unique sequences    :', len(sequence_ID)
+	print 'Number of genes     :', len(sets.Set(IDs))
+	print 'Length of alignment :', len(sequence_ID.keys()[0])
+	print
 
 ## Assess alignment breadth coverage, requires user-specified breadth coverage of the alignment
-print 'Assess alignment breath coverage'
+if options.verbose:
+	print 'Assess alignment breath coverage'
+
 alignment_length = len(sequence_ID.keys()[0])
 
 truth = False
@@ -134,9 +142,10 @@ for sequence in sequence_ID.keys():
 if options.breadth > 0:
 	selected_genes = threshold_IDs
 
-	print '\t' + 'Number of sequences meeting breadth threshold :', len(threshold_IDs)
-	print '\t' + 'Number of non-redundant sequences meeting breadth threshold :', len(nr_threshold_IDs)
-	print
+	if options.verbose:
+		print '\t' + 'Number of sequences meeting breadth threshold :', len(threshold_IDs)
+		print '\t' + 'Number of non-redundant sequences meeting breadth threshold :', len(nr_threshold_IDs)
+		print
 else:
 	selected_genes = []
 
@@ -145,7 +154,9 @@ else:
 			selected_genes.append(ID)
 
 # Export alignment coverage 
-print 'Export alignment coverage'
+if options.verbose:
+	print 'Export alignment coverage'
+
 alignment_coverage_file = open(options.alignment + '_alignment_coverage.txt', 'w')
 	
 alignment_coverage_file.write('position' + '\t' + 'coverage' + '\n')
@@ -170,11 +181,13 @@ for position_index in range(len(alignment)):
 		position_selection.append(position_index)
 
 
-print 'Number of positions meeting depth threshold of', options.depth, 'is', len(position_selection)
+if options.verbose:
+	print 'Number of positions meeting depth threshold of', options.depth, 'is', len(position_selection)
 
 
 # Visualization of alignment coverage
-print 'Visualization of alignment coverage'
+if options.verbose:
+	print 'Visualization of alignment coverage'
 
 data_visualization_file = open(options.alignment + '_alignment_coverage.R', 'w')
 data_visualization_file.write('library(ggplot2)' + '\n')
@@ -194,7 +207,8 @@ commands.getstatusoutput('R --vanilla < ' + options.alignment + '_alignment_cove
 ## Reduce evaluated sites to polymorphic sites
 # check site frequency, evaluate if variation exists
 if options.reduce:
-	print 'Reduce evaluated sites'
+	if options.verbose:
+		print 'Reduce evaluated sites'
 
 	ID_sequence_polymorphic_sites = {}
 	
@@ -226,9 +240,10 @@ if options.reduce:
 	
 		sequence_ID_polymorphic_sites[ID_sequence_polymorphic_sites[ID]].append(ID)
 	
-	print 'Number of sites that were:'
-	print '\t' + 'Polymorphic:', polymorphic_sites
-	print '\t' + 'Monomorphic:', monomorphic_sites
+	if options.verbose:
+		print 'Number of sites that were:'
+		print '\t' + 'Polymorphic:', polymorphic_sites
+		print '\t' + 'Monomorphic:', monomorphic_sites
 	
 	selected_genes = []
 	
@@ -238,9 +253,10 @@ if options.reduce:
 	
 		selected_genes.append(identical_sequence_IDs[0])
 	
-	print 'Unique sequences :', len(sequence_ID_polymorphic_sites.keys())
-	print 'Number of genes  :', len(selected_genes)
-	print
+	if options.verbose:
+		print 'Unique sequences :', len(sequence_ID_polymorphic_sites.keys())
+		print 'Number of genes  :', len(selected_genes)
+		print
 else:
 	ID_sequence_polymorphic_sites = ID_sequence
 	sequence_ID_polymorphic_sites = sequence_ID
@@ -249,12 +265,14 @@ else:
 ## output files
 # digitial: non-redundant correction, optional coverage requirement
 # crosslist: redundant identifiers
-print 'output files'
+if options.verbose:
+	print 'output files'
 
 phylip_digital = open(options.output, 'w')
 
-print 'Genotypes in alignment:', len(sequence_ID_polymorphic_sites.keys())
-print 'Length of alignment:   ', len(sequence_selection(sequence_ID_polymorphic_sites.keys()[0], position_selection))
+if options.verbose:
+	print 'Genotypes in alignment:', len(sequence_ID_polymorphic_sites.keys())
+	print 'Length of alignment:   ', len(sequence_selection(sequence_ID_polymorphic_sites.keys()[0], position_selection))
 
 # export identifier and sequence, final check of gene identifier length
 if options.nr:
