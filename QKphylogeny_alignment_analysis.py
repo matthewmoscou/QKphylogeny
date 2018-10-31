@@ -43,13 +43,19 @@ parser = OptionParser(usage=usage)
 parser.add_option("-a", "--alignment", action="store", type="string", dest="alignment", default='', help="Alignment file in Phylip format")
 parser.add_option("-b", "--breadth", action="store", type="float", dest="breadth", default=-1.0, help="Breadth coverage required for inclusion of sequence, coverage above 0.0 but equal to or lower than 1.0. Breadth refers to the start and end of a sequence relative to the entire alignment.")
 parser.add_option("-d", "--depth", action="store", type="float", dest="depth", default=-1.0, help="Depth coverage required for inclusion of sequence, coverage above 0.0 but equal to or lower than 1.0. Depth coverage refers to the number of characters with data (i.e. no missing data or gaps).")
+parser.add_option("-m", "--missing", action="store", type="float", dest="missing", default=-1.0, help="Alternative to breadth coverage, exclude sequences based on degree of missing data with a range from 0.0 to 1.0.")
 parser.add_option("-n", "--nonredundant", action="store_true", dest="nr", default=False, help="Remove redundant sequences from alignment")
 parser.add_option("-o", "--output", action="store", type="string", dest="output", default='', help="Output file for tree with updated identifiers")
 parser.add_option("-r", "--reduce", action="store_true", dest="reduce", default=False, help="Reduce alignment to polymorphic sites")
-parser.add_option("-t", "--type", action="store", type="string", dest="type", default='nucleotide', help="Specify nucleotide or protein")
+parser.add_option("-t", "--type", action="store", type="string", dest="type", default='', help="Specify nucleotide or protein")
 parser.add_option("-q", "--quiet", action="store_false", dest="verbose", default=True, help="Don't print status messages to stdout")
 (options, args) = parser.parse_args()
 
+
+## QC input parameters
+if options.type not in ['nucleotide', 'protein']:
+	print 'Type parameter is incorrect, select either nucleotide or protein'
+	exit()
 
 ## Import phylip file
 # check for identical sequence and notify user
@@ -102,33 +108,34 @@ position_sequence = []
 
 threshold_IDs = []
 nr_threshold_IDs = []
-	
+
+present_threshold_IDs = []
+nr_present_threshold_IDs = []
+
 for sequence in sequence_ID.keys():
 	first_sequence = -1
 	last_sequence = -1
 
-	alignment = sequence
-
 	if len(position_sequence) == 0:
-		for position_index in range(len(alignment)):
+		for position_index in range(len(sequence)):
 			position_sequence.append([])
 
-	for position_index in range(len(alignment)):
-		position_sequence[position_index].append(alignment[position_index])
+	for position_index in range(len(sequence)):
+		position_sequence[position_index].append(sequence[position_index])
 
 		if first_sequence < 0:
 			if options.type == 'nucleotide':
-				if alignment[position_index] in nucleotides:
+				if sequence[position_index] in nucleotides:
 					first_sequence = position_index
 			elif options.type == 'protein':
-				if alignment[position_index] in amino_acids:
+				if sequence[position_index] in amino_acids:
 					first_sequence = position_index
 
 		if options.type == 'nucleotide':
-			if alignment[position_index] in nucleotides:
+			if sequence[position_index] in nucleotides:
 				last_sequence = position_index
 		elif options.type == 'protein':
-			if alignment[position_index] in amino_acids:
+			if sequence[position_index] in amino_acids:
 				last_sequence = position_index
 
 	if ((float(last_sequence) - float(first_sequence)) / float(alignment_length)) > options.breadth:
@@ -137,14 +144,32 @@ for sequence in sequence_ID.keys():
 		for gene in sequence_ID[sequence]:
 			threshold_IDs.append(gene)
 
+	if (sequence.count('-') / float(alignment_length)) < (1.0 - options.missing):
+		nr_present_threshold_IDs.append(sequence_ID[sequence][0])
+
+		for gene in sequence_ID[sequence]:
+			present_threshold_IDs.append(gene)
 
 # if coverage used, limit to genes that meet threshold
 if options.breadth > 0:
 	selected_genes = threshold_IDs
 
+	if options.reduce:
+		selected_genes = nr_threshold_IDs
+
 	if options.verbose:
 		print '\t' + 'Number of sequences meeting breadth threshold :', len(threshold_IDs)
 		print '\t' + 'Number of non-redundant sequences meeting breadth threshold :', len(nr_threshold_IDs)
+		print
+elif options.missing > 0:
+	selected_genes = present_threshold_IDs
+
+	if options.reduce:
+		selected_genes = nr_present_threshold_IDs
+
+	if options.verbose:
+		print '\t' + 'Number of sequences meeting missing threshold :', len(present_threshold_IDs)
+		print '\t' + 'Number of non-redundant sequences meeting missing threshold :', len(nr_present_threshold_IDs)
 		print
 else:
 	selected_genes = []
@@ -158,12 +183,11 @@ if options.verbose:
 	print 'Export alignment coverage'
 
 alignment_coverage_file = open(options.alignment + '_alignment_coverage.txt', 'w')
-	
 alignment_coverage_file.write('position' + '\t' + 'coverage' + '\n')
 
 position_selection = []
 
-for position_index in range(len(alignment)):
+for position_index in range(alignment_length):
 	positive_sites = 0
 
 	for singlesequence in position_sequence[position_index]:
@@ -180,10 +204,17 @@ for position_index in range(len(alignment)):
 	if (float(positive_sites) / float(len(position_sequence[position_index]))) > options.depth:
 		position_selection.append(position_index)
 
-
 if options.verbose:
 	print 'Number of positions meeting depth threshold of', options.depth, 'is', len(position_selection)
 
+# Export present data coverage
+present_coverage_file = open(options.alignment + '_present_coverage.txt', 'w')
+present_coverage_file.write('ID' + '\t' + 'coverage' + '\n')
+
+for sequence in sequence_ID.keys():
+	present_coverage_file.write(str(sequence_ID.keys().index(sequence)) + '\t' + str(alignment_length - sequence.count('-')) + '\n')
+
+present_coverage_file.close()
 
 # Visualization of alignment coverage
 if options.verbose:
@@ -201,7 +232,20 @@ data_visualization_file.write('dev.off()' + '\n')
 data_visualization_file.write('' + '\n')
 data_visualization_file.close()
 
+data_visualization_file = open(options.alignment + '_present_coverage.R', 'w')
+data_visualization_file.write('library(ggplot2)' + '\n')
+data_visualization_file.write('\n')
+data_visualization_file.write('present = read.table(file="' + options.alignment + '_present_coverage.txt", header=T)' + '\n')
+data_visualization_file.write('present = data.frame(present)' + '\n')
+data_visualization_file.write('\n')
+data_visualization_file.write('png(file="' + options.alignment + '_present_coverage.png", height=600, width=600)' + '\n')
+data_visualization_file.write('ggplot(present, aes(coverage)) + geom_histogram() + scale_x_continuous(limits = c(-5, ' + str(alignment_length * 1.05) + '))' + '\n')
+data_visualization_file.write('dev.off()' + '\n')
+data_visualization_file.write('' + '\n')
+data_visualization_file.close()
+
 commands.getstatusoutput('R --vanilla < ' + options.alignment + '_alignment_coverage.R')
+commands.getstatusoutput('R --vanilla < ' + options.alignment + '_present_coverage.R')
 
 
 ## Reduce evaluated sites to polymorphic sites
