@@ -32,6 +32,7 @@ parser.add_option("-o", "--output", action="store", type="string", dest="output"
 node_label_file = open(options.labels, 'r')
 
 gene_identifier = {}
+len_gene_sort = {}
 
 for line in node_label_file.readlines():
 	sline = string.split(line)
@@ -39,8 +40,16 @@ for line in node_label_file.readlines():
 	if len(sline) > 1:
 		gene_identifier[sline[0]] = sline[1]
 
+                if len(sline[0]) not in len_gene_sort.keys():
+                    len_gene_sort[len(sline[0])] = []
+
+                len_gene_sort[len(sline[0])].append(sline[0])
+
 node_label_file.close()
 
+gene_lengths = len_gene_sort.keys()
+gene_lengths.sort()
+gene_lengths.reverse()
 
 # read phylogenetic tree
 tree_file = open(options.tree, 'r')
@@ -58,8 +67,9 @@ tree_file.close()
 
 
 # replace identifiers
-for gene in gene_identifier.keys():
-	tree = string.replace(tree, gene, gene_identifier[gene])
+for lengths in gene_lengths:
+    for gene in len_gene_sort[lengths]:
+        tree = string.replace(tree, gene, gene_identifier[gene])
 
 
 # export tree
